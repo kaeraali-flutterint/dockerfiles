@@ -21,7 +21,7 @@ updates:
   - package-ecosystem: "docker"
     target-branch: "main"
     directories:
-      - "/ghcr.io/flutterint/*"
+      - "/ghcr.io/kaeraali-flutterint/*"
     schedule:
       interval: "weekly"
       day: "sunday"

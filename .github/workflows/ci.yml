@@ -2,6 +2,9 @@
 name: Build & Publish Docker Images
 on:
   pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -12,11 +15,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - name: Generate matrix
         id: generate-matrix
         run: |
-          CHANGED_DIRS=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} '*Dockerfile' | xargs -I {} dirname {})
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE_SHA="HEAD~1"
+          else
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          fi
+          CHANGED_DIRS=$(git diff --name-only $BASE_SHA | xargs -I {} dirname {} | cut -d'/' -f1-3 | grep -v .git | grep '/' | sort -u)
           MATRIX_PROJECTS_JSON="["
           MATRIX_INCLUDE_JSON="["
           for DIR in ${CHANGED_DIRS}; do
@@ -35,11 +43,11 @@ jobs:
           if [[ "${MATRIX_PROJECTS_JSON}" != "[]" ]]; then
             CONTINUE_DOCKER_JOB="yes"
           fi
-          echo "::set-output name=continue::${CONTINUE_DOCKER_JOB}"
-          echo "::set-output name=matrix::${MATRIX_JSON}"
+          echo "continue=${CONTINUE_DOCKER_JOB}" >> $GITHUB_OUTPUT
+          echo "matrix=${MATRIX_JSON}" >> $GITHUB_OUTPUT
   docker:
     if: needs.setup.outputs.continue == 'yes'
-    needs: metadata
+    needs: setup
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -54,4 +62,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build the Docker image
-        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
+        run: docker build -t ${{ matrix.project }}:latest ${{ matrix.project }}
+      - name: Install Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+      - name: Run terratest
+        run: go test ./${{ matrix.project }}/test
+      - name: Push the Docker image
+        run: docker push ${{ matrix.project }}:latest
+        if: github.event_name != 'pull_request'
