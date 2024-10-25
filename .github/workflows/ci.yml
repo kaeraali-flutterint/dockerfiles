@@ -46,6 +46,10 @@ jobs:
           echo "continue=${CONTINUE_DOCKER_JOB}" >> $GITHUB_OUTPUT
           echo "matrix=${MATRIX_JSON}" >> $GITHUB_OUTPUT
   docker:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     if: needs.setup.outputs.continue == 'yes'
     needs: setup
     runs-on: ubuntu-latest
