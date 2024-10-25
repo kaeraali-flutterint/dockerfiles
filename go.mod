@@ -1,4 +1,4 @@
-module github.com/flutterint/dockerfiles
+module github.com/kaeraali-flutterint/dockerfiles
 
 go 1.23.2
 

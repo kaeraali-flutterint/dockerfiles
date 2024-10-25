@@ -8,14 +8,14 @@ import (
 )
 
 func TestDockerHelloWorldExample(t *testing.T) {
-	tag := "flutterint/helloworld"
+	tag := "kaeraali-flutterint/helloworld"
 	buildOptions := &docker.BuildOptions{
 		Tags: []string{tag},
 	}
 
-	docker.Build(t, "../ghcr.io/flutterint/helloworld", buildOptions)
+	docker.Build(t, "../", buildOptions)
 
 	opts := &docker.RunOptions{Command: []string{"cat", "/test.txt"}}
 	output := docker.Run(t, tag, opts)
-	assert.Equal(t, "Hello, World!", output)
+	assert.Equal(t, "Hello World!", output)
 }
