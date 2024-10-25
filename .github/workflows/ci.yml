@@ -64,7 +64,7 @@ jobs:
       - name: Build the Docker image
         run: docker build -t ${{ matrix.project }}:latest ${{ matrix.project }}
       - name: Install Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
       - name: Run terratest
         run: go test ./${{ matrix.project }}/test
       - name: Push the Docker image
