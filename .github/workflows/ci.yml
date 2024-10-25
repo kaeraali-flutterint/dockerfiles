@@ -1,0 +1,57 @@
+---
+name: Build & Publish Docker Images
+on:
+  pull_request:
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+      continue: ${{ steps.generate-matrix.outputs.continue }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Generate matrix
+        id: generate-matrix
+        run: |
+          CHANGED_DIRS=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} '*Dockerfile' | xargs -I {} dirname {})
+          MATRIX_PROJECTS_JSON="["
+          MATRIX_INCLUDE_JSON="["
+          for DIR in ${CHANGED_DIRS}; do
+            MATRIX_PROJECTS_JSON+=$(sed 's/^/"/;s/$/"/' <<< "${DIR}")
+            DOCKERFILE="${DIR}/Dockerfile"
+            MATRIX_INCLUDE_JSON+="{\"project\": \"${DIR}\", \"dockerfile\": \"${DOCKERFILE}\"}"
+          done
+
+          MATRIX_INCLUDE_JSON="${MATRIX_INCLUDE_JSON//\}\{/\}, \{}"
+          MATRIX_INCLUDE_JSON+="]"
+          MATRIX_PROJECTS_JSON="${MATRIX_PROJECTS_JSON//\"\"/\", \"}"
+          MATRIX_PROJECTS_JSON+="]"
+          MATRIX_JSON="{\"projects\": ${MATRIX_PROJECTS_JSON}, \"include\": ${MATRIX_INCLUDE_JSON}}"
+          echo "${MATRIX_JSON}"
+          CONTINUE_DOCKER_JOB="no"
+          if [[ "${MATRIX_PROJECTS_JSON}" != "[]" ]]; then
+            CONTINUE_DOCKER_JOB="yes"
+          fi
+          echo "::set-output name=continue::${CONTINUE_DOCKER_JOB}"
+          echo "::set-output name=matrix::${MATRIX_JSON}"
+  docker:
+    if: needs.setup.outputs.continue == 'yes'
+    needs: metadata
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build the Docker image
+        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
